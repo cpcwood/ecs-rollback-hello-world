@@ -3,30 +3,28 @@
 
 ## Building Infrastructure
 
+Create IAM user with S3 and DynamoDB access.
+
 Add `ecs-rollback-hello-world` AWS profile to credentials list:
 
 ```sh
 sudo vim ~/.aws/credentials
 ```
 
-### Create remote state infrastructure
-
-Move to infrastructure dir:
-
-```sh
-cd .infrastructure/install
+```
+[ecs-rollback-hello-world]
+aws_access_key_id = 
+aws_secret_access_key = 
 ```
 
-Set init variables:
+### Create infrastructure
+
+Create a `.env` file from the `.env/example` in the project root with required AWS configuration variables.
+
+Run build script:
 
 ```sh
-TF_VAR_tf_state_s3_bucket=<your-tf-state-bucket-name>
-```
-
-Create remote backend:
-
-```sh
-terraform init && terraform apply -var "tf_state_s3_bucket=$TF_VAR_tf_state_bucket"
+./bin/build_infrastructure
 ```
 
 ### Create ECS Infrastructure

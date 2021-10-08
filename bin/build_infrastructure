@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -e
+
+source './.env'
+
+cd './terraform/remote_state'
+
+terraform init 
+terraform apply \
+  -var "tf_state_bucket_region=$TF_VAR_tf_state_bucket_region" \
+  -var "tf_state_s3_bucket=$TF_VAR_tf_state_bucket" \
+  -var "tf_state_lock_table=$TF_VAR_tf_state_lock_table"
+
+cd '-'
+cd './terraform/infrastructure'
+
+terraform init \
+  -backend-config "region=$TF_VAR_tf_state_bucket_region" \
+  -backend-config "bucket=$TF_VAR_tf_state_bucket" \
+  -backend-config "dynamodb_table=$TF_VAR_tf_state_lock_table" \
+  -backend-config "key=ecs-rollback-hello-world.tfstate"

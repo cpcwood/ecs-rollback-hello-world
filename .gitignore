@@ -3,3 +3,4 @@
 *.tfstate.backup
 .terraform.tfstate.lock.info
 .terraform.lock.hcl
+**/*.env

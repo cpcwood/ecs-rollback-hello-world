@@ -1,7 +1,6 @@
 # creates 
 #   - backend s3 bucket to store main application terraform state
 #   - dynamodb table to lock state during changes
-#   - ssm parameter to store s3 bucket id
 
 terraform {
   required_providers {
@@ -10,11 +9,10 @@ terraform {
       version = "~> 3.62"
     }
   }
-
   required_version = ">= 1.0.8"
 }
 
-variable "aws_region" {
+variable "tf_state_bucket_region" {
   description = "AWS region the backend s3 bucket is created in"
   default = "eu-west-2"
 }
@@ -24,23 +22,13 @@ variable "tf_state_s3_bucket" {
   default = "ecs-rollback-hello-world"
 }
 
-variable "dynamodb_lock_table" {
+variable "tf_state_lock_table" {
   description = "AWS DynamoDB state lock table name"
   default = "ecs-rollback-hello-world-state-lock-table"
 }
 
-variable "ssm_s3_bucket_id" {
-  description = "AWS SSM parameter name to store the backend state S3 bucket id"
-  default = "/ecs-rollback-hello-world/tf_state_s3_bucket"
-}
-
-variable "ssm_dynamodb_lock_table" {
-  description = "AWS SSM parameter name to store the backend state S3 bucket id"
-  default = "/ecs-rollback-hello-world/tf_state_lock_table"
-}
-
 provider "aws" {
-  region = var.aws_region
+  region = var.tf_state_bucket_region
   profile = "ecs-rollback-hello-world"
 }
 
@@ -69,7 +57,7 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
 }
 
 resource "aws_dynamodb_table" "terraform_state_lock" {
-  name = var.dynamodb_lock_table 
+  name = var.tf_state_lock_table 
   read_capacity = 1
   write_capacity = 1
   hash_key = "LockID"
@@ -80,16 +68,10 @@ resource "aws_dynamodb_table" "terraform_state_lock" {
   }
 }
 
-resource "aws_ssm_parameter" "tf_state_s3_bucket" {
-  name = var.ssm_s3_bucket_id
-  type = "String"
+output "tf_state_s3_bucket" {
   value = aws_s3_bucket.terraform_state.id
-  overwrite = true
 }
 
-resource "aws_ssm_parameter" "tf_state_lock_table" {
-  name = var.ssm_dynamodb_lock_table
-  type = "String"
+output "tf_state_lock_table" {
   value = aws_dynamodb_table.terraform_state_lock.id
-  overwrite = true
 }
