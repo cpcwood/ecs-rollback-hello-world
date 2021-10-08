@@ -19,3 +19,6 @@ terraform init \
   -backend-config "bucket=$TF_VAR_tf_state_bucket" \
   -backend-config "dynamodb_table=$TF_VAR_tf_state_lock_table" \
   -backend-config "key=ecs-rollback-hello-world.tfstate"
+
+terraform apply \
+  -var "container_image_name=$CONTAINER_IMAGE_NAME"
