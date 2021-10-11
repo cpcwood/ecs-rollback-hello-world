@@ -79,10 +79,10 @@ updated_task_definition_info=$(aws ecs register-task-definition --cli-input-json
 
 # update service with new task definition revision
 updated_task_definition_revision=$(echo "$updated_task_definition_info" | jq '.taskDefinition.revision')
-silent=$(aws ecs update-service --cluster "$ecs_cluster_name" \
-                                --service "$ecs_service_name" \
-                                --task-definition "$task_definition_family:$updated_task_definition_revision"
-)
+aws ecs update-service --cluster "$ecs_cluster_name" \
+                       --service "$ecs_service_name" \
+                       --task-definition "$task_definition_family:$updated_task_definition_revision" \
+                       >/dev/null
 
 echo "Service Updated:"
 echo "  Service: $ecs_cluster_name/$ecs_service_name"

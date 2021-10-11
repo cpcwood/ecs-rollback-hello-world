@@ -1,6 +1,15 @@
 # AWS ECS Rollback - Hello World
 
-Sample AWS Elastic Container Service (ECS) application with deploy and rollback deploy scripts, as referenced in <add blog post link>
+Sample AWS Elastic Container Service (ECS) application with deploy and rollback deploy scripts, referenced in [Rolling back AWS Elastic Container Service (ECS) Deployments](https://www.cpcwood.com/blog/4-rolling-back-aws-elastic-container-service-ecs-deployments).
+
+## Dependencies
+
+Install required dependencies:
+- [bash](https://www.gnu.org/software/bash/) - [command-not-found](https://command-not-found.com/bash)
+- [aws-cli v2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
+- [terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+- [jq](https://stedolan.github.io/jq/download/)
+- [dialog](https://linux.die.net/man/1/dialog) - [command-not-found](https://command-not-found.com/dialog)
 
 ## Building Infrastructure
 
@@ -19,6 +28,8 @@ aws_secret_access_key = <iam user secret key>
 ```
 
 ### Create infrastructure
+
+Fork or clone the project.
 
 Create a `.env` file from the `.env/example` in the project root with required configuration variables.
 
@@ -83,3 +94,5 @@ Rollbacks will take a couple minutes as new tasks are provisioned and started, c
 ## Teardown Infrastructure
 
 Run the `./bin/teardown_infrastructure` to use Terraform to remove the sample ECS application infrastructure.
+
+You may also need to [deregister](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/deregister-task-definition.html) any additional ECS task definitions not managed by Terraform.

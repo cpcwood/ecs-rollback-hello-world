@@ -1,55 +1,14 @@
 #!/usr/bin/env bash
-# Description: Build and deploy updated hello.go app to ECS
+# Description: Rollback ECS sample app using dialog script
 set -e
 source '.env'
 
-cd ./terraform/infrastructure
-task_definition_family=$(terraform output task_definition_family | tr -d '"')
-ecs_cluster_name=$(terraform output ecs_cluster_name | tr -d '"')
-ecs_service_name=$(terraform output ecs_service_name | tr -d '"')
-cd -
+function ecs_service_to_project_dir() {
+  echo './' # only one service at root dir
+}
 
+BACK_TITLE='ECS Sample App'
+SCRIPT_NAME="ECS Deployment Rollback"
 
-# rollback
-# ===========================
-number_of_previous_task_definitions=5
-
-echo 'Loading task definitions...'
-while read -r arn; do task_definition_arns+=("$(echo "$arn" | tr -d '"')"); done < <(
-  aws ecs list-task-definitions --family-prefix "$task_definition_family" \
-                                --max-items "$number_of_previous_task_definitions" \
-                                --query taskDefinitionArns \
-                                --sort DESC \
-    | jq '.[]'
-)
-
-PS3='Please select task definition to rollback to: '
-select task_definition_arn in "${task_definition_arns[@]}"
-do
-  echo " ${task_definition_arns[*]} "
-  echo " ${task_definition_arn} "
-  if [[ " ${task_definition_arns[*]} " =~ " ${task_definition_arn} " ]]; then
-    break
-  else
-    echo 'Invalid value entered, exiting...'
-    exit 1
-  fi
-done
-
-echo "Updating: $ecs_service_name"
-echo "  Cluster Name: [$ecs_cluster_name]"
-echo "  New Task Definition: [$task_definition_arn]"
-
-read -p "Are you sure you want to update this service? " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
-  exit 1
-fi
-
-echo 'Updating service...'
-aws ecs update-service --cluster "$ecs_cluster_name" \
-                       --service "$ecs_service_name" \
-                       --task-definition "$task_definition_arn" \
-                       >/dev/null
-echo 'Service updated!'
+source ./bin/lib/aws_ecs_rollback
+aws_ecs_rollback ecs_service_to_project_dir
