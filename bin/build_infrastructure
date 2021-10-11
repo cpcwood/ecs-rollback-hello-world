@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
+# Description: Build sample ECS infrastructure
 set -e
+source '.env'
 
-source './.env'
-
-cd './terraform/remote_state'
+cd ./terraform/remote_state
 
 terraform init 
 terraform apply \
@@ -11,8 +11,8 @@ terraform apply \
   -var "tf_state_s3_bucket=$TF_VAR_tf_state_bucket" \
   -var "tf_state_lock_table=$TF_VAR_tf_state_lock_table"
 
-cd '-'
-cd './terraform/infrastructure'
+cd -
+cd ./terraform/infrastructure
 
 terraform init \
   -backend-config "region=$TF_VAR_tf_state_bucket_region" \

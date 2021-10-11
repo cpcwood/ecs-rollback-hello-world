@@ -279,10 +279,11 @@ resource "aws_alb_target_group" "ecs-rollback-hello-world" {
   protocol = "HTTP"
   vpc_id = aws_vpc.ecs-rollback-hello-world.id
   target_type = "ip"
+  deregistration_delay = 5
  
   health_check {
     healthy_threshold = "3"
-    interval = "30"
+    interval = "10"
     protocol = "HTTP"
     matcher = "200"
     timeout = "3"

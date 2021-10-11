@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Description: Build and deploy updated hello.go app to ECS
 set -e
-source './.env'
+source '.env'
 
 cd ./terraform/infrastructure
 ecr_repo=$(terraform output ecr_repository_endpoint | tr -d '"')
@@ -9,6 +9,7 @@ task_definition_family=$(terraform output task_definition_family | tr -d '"')
 ecs_cluster_name=$(terraform output ecs_cluster_name | tr -d '"')
 ecs_service_name=$(terraform output ecs_service_name | tr -d '"')
 cd -
+
 
 # build image
 # ===========================
@@ -20,7 +21,8 @@ docker build \
   --tag "$ecr_repo:latest" \
   .
 
-# push updated image to ECR
+
+# push image to ECR
 # ==========================
 
 aws ecr get-login-password --profile ecs-rollback-hello-world | \
@@ -29,7 +31,8 @@ aws ecr get-login-password --profile ecs-rollback-hello-world | \
 docker push "$ecr_repo:$unique_image_tag"
 docker push "$ecr_repo:latest"
 
-# update service
+
+# update ECS service
 # ===========================
 
 echo "Updating: $ecs_service_name"
@@ -65,7 +68,7 @@ if [[ $current_container_image = "\"$updated_container_image\"" ]]; then
   read -p "Are you sure you want to deploy?" -n 1 -r
   if [[ ! $REPLY =~ ^[Yy]$ ]]
   then
-      exit 1
+    exit 1
   fi
 fi
 
