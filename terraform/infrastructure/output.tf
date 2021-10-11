@@ -1,4 +1,4 @@
-output "ecr_repo" {
+output "ecr_repository_endpoint" {
   value = module.ecr.ecr_repository_endpoint
 }
 
