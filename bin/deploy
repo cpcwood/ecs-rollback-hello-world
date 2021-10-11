@@ -8,6 +8,7 @@ ecr_repo=$(terraform output ecr_repository_endpoint | tr -d '"')
 task_definition_family=$(terraform output task_definition_family | tr -d '"')
 ecs_cluster_name=$(terraform output ecs_cluster_name | tr -d '"')
 ecs_service_name=$(terraform output ecs_service_name | tr -d '"')
+application_url=$(terraform output application_url | tr -d '"')
 cd -
 
 
@@ -87,3 +88,4 @@ echo "Service Updated:"
 echo "  Service: $ecs_cluster_name/$ecs_service_name"
 echo "  Updated Task Definition: $task_definition_family:$updated_task_definition_revision"
 echo "  Previous Task Definition: $task_definition_family:$current_task_definition_revision"
+echo "  Application URL: $application_url"

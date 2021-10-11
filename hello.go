@@ -8,7 +8,7 @@ import (
 
 // HelloServer responds to requests with the given URL path.
 func HelloServer(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, World!")
+	fmt.Fprintf(w, "Roll me back!")
 	log.Printf("Received request for path: %s", r.URL.Path)
 }
 

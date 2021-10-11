@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Description: Build sample ECS infrastructure
+set -e
+source '.env'
+
+cd ./terraform/infrastructure
+
+terraform apply -destroy \
+  -var "ecr_repo_name=$ECR_REPO_NAME" \
+  -var "ecs_cluster_name=$ECS_CLUSTER_NAME"
+
+cd -
+cd ./terraform/remote_state
+
+terraform apply -destroy \
+  -var "tf_state_bucket_region=$TF_VAR_tf_state_bucket_region" \
+  -var "tf_state_s3_bucket=$TF_VAR_tf_state_bucket" \
+  -var "tf_state_lock_table=$TF_VAR_tf_state_lock_table"
