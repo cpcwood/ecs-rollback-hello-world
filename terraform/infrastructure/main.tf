@@ -16,289 +16,52 @@ provider "aws" {
   profile = "ecs-rollback-hello-world"
 }
 
-variable "ecs_cluster_name" {
-  description = "Name of ECS cluster"
-  default = "ecs-rollback-hello-world"
-}
-
-variable "ecr_repo_name" {
-  description = "Name of container image to be deployed in ECS"
-  default = "hello-world-go"
-}
-
-variable "aws_region" {
-  description = "AWS region to build ecs cluster in"
-  default = "eu-west-2"
-}
-
-variable "availability_zones" {
-  description = "list of availability zones"
-  default = ["eu-west-2a", "eu-west-2b"]
-}
-
-variable "public_subnets" {
-  description = "list of CIDRs for public subnets in your VPC"
-  default = ["10.1.1.0/24", "10.1.2.0/24"]
-}
 
 # Networking
 # ==========================
 
-# vpc for ecs
-resource "aws_vpc" "ecs-rollback-hello-world" {
-  cidr_block = "10.1.0.0/16"
-  enable_dns_hostnames = true
+module "vpc" {
+  source = "./modules/vpc"
 
-  tags = {
-    Name = "ecs-rollback-hello-world"
-  }
-}
-
-# vpc subnet - public
-resource "aws_subnet" "ecs-rollback-hello-world-subnet-public" {
-  vpc_id = aws_vpc.ecs-rollback-hello-world.id
-  cidr_block = element(var.public_subnets, count.index)
-  availability_zone = element(var.availability_zones, count.index)
-  count = length(var.public_subnets)
-  map_public_ip_on_launch = true
-
-  tags = {
-    Name = "ecs-rollback-hello-world-subnet-public"
-  }
-}
-
-# connect vpc to internet
-resource "aws_internet_gateway" "ecs-rollback-hello-world" {
-  vpc_id = aws_vpc.ecs-rollback-hello-world.id
-
-  tags = {
-    Name = "ecs-rollback-hello-world"
-  }
-}
-
-# route traffic from vpc to internet gateway
-resource "aws_route_table" "ecs-rollback-hello-world" {
-  vpc_id = aws_vpc.ecs-rollback-hello-world.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.ecs-rollback-hello-world.id
-  }
-}
-
-# add route table to subnet
-resource "aws_route_table_association" "ecs-rollback-hello-world-ig-to-pubic" {
-  count = length(var.public_subnets)
-  subnet_id = element(aws_subnet.ecs-rollback-hello-world-subnet-public.*.id, count.index)
-  route_table_id = aws_route_table.ecs-rollback-hello-world.id
-}
-
-# add security group for vpc
-resource "aws_security_group" "ecs-rollback-hello-world-ecs" {
-  vpc_id = aws_vpc.ecs-rollback-hello-world.id
-
-  ingress {
-    from_port = 80
-    to_port = 8080
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port = 0
-    to_port = 65535
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  vpc_name = var.ecs_cluster_name
 }
 
 
 # ECR
 # ==========================
 
-# ecr repository
-resource "aws_ecr_repository" "ecs-rollback-hello-world" {
-  name = var.ecr_repo_name
-}
+module "ecr" {
+  source = "./modules/ecr"
 
-resource "aws_ecr_lifecycle_policy" "ecs-rollback-hello-world" {
-  repository = aws_ecr_repository.ecs-rollback-hello-world.name
- 
-  policy = jsonencode({
-   rules = [{
-     rulePriority = 1
-     description = "keep last 5 images"
-     action = {
-       type = "expire"
-     }
-     selection = {
-       tagStatus = "any"
-       countType = "imageCountMoreThan"
-       countNumber = 5
-     }
-   }]
-  })
-}
-
-# output ecr repo endpoint
-output "ecr_repository_endpoint" {
-  value = aws_ecr_repository.ecs-rollback-hello-world.repository_url
+  ecr_repo_name = var.ecr_repo_name
 }
 
 
 # ECS
 # ==========================
 
-resource "aws_ecs_cluster" "ecs-rollback-hello-world" {
-  name = var.ecs_cluster_name
+module "ecs" {
+  source = "./modules/ecs"
+
+  ecs_cluster_name = var.ecs_cluster_name
+  container_image_uri = module.ecr.ecr_repository_endpoint
+  container_image_tag = "latest"
+  vpc_id = module.vpc.vpc_id
+  ecs_service_subnets = module.vpc.public_subnet_ids
+  ecr_repo_name = var.ecr_repo_name
+  target_group_arn = module.alb.target_group_ecs.arn
+  application_port = var.application_port
 }
 
-resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "ecs-rollback-hello-world-ecsTaskExecutionRole"
- 
-  assume_role_policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "ecs-tasks.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
-}
- 
-resource "aws_iam_role_policy_attachment" "ecs-task-execution-role-policy-attachment" {
-  role = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-resource "aws_ecs_task_definition" "ecs-rollback-hello-world" {
-  family = "ecs-rollback-hello-world"
-  network_mode = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  cpu = 256
-  memory = 512
-  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
-  container_definitions = jsonencode([{
-    image = "${aws_ecr_repository.ecs-rollback-hello-world.repository_url}:latest"
-    name = var.ecr_repo_name
-    essential = true
-    portMappings = [{
-      protocol = "tcp"
-      containerPort = 8080
-      hostPort = 8080
-    }]
-  }])
-}
-
-resource "aws_ecs_service" "ecs-rollback-hello-world" {
-  name = "ecs-rollback-hello-world"
-  cluster = aws_ecs_cluster.ecs-rollback-hello-world.id
-  task_definition = aws_ecs_task_definition.ecs-rollback-hello-world.arn
-  desired_count = 1
-  deployment_minimum_healthy_percent = 100
-  deployment_maximum_percent = 200
-  launch_type = "FARGATE"
-  scheduling_strategy = "REPLICA"
-  
-  network_configuration {
-    security_groups = [aws_security_group.ecs-rollback-hello-world-ecs.id]
-    subnets = aws_subnet.ecs-rollback-hello-world-subnet-public.*.id
-    assign_public_ip = true
-  }
-  
-  load_balancer {
-    target_group_arn = aws_alb_target_group.ecs-rollback-hello-world.arn
-    container_name = var.ecr_repo_name
-    container_port = 8080
-  }
-  
-  lifecycle {
-    ignore_changes = [task_definition, desired_count]
-  }
-}
-
-output "ecs_cluster_name" {
-  value = aws_ecs_cluster.ecs-rollback-hello-world.name
-}
-
-output "ecs_service_name" {
-  value = aws_ecs_service.ecs-rollback-hello-world.name
-}
-
-output "task_definition_family" {
-  value = aws_ecs_task_definition.ecs-rollback-hello-world.family
-}
 
 # Load Balancing
 # ==========================
 
-resource "aws_security_group" "ecs-rollback-hello-world-alb" {
-  name = "ecs-rollback-hello-world-alb"
-  vpc_id = aws_vpc.ecs-rollback-hello-world.id
+module "alb" {
+  source = "./modules/alb"
 
-  ingress {
-    protocol         = "tcp"
-    from_port        = 80
-    to_port          = 80
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-
-  egress {
-    protocol         = "-1"
-    from_port        = 0
-    to_port          = 0
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-
-  tags = {
-    Name = "ecs-rollback-hello-world-alb"
-  }
-}
-
-resource "aws_lb" "ecs-rollback-hello-world" {
-  name = "ecs-rollback-hello-world"
-  internal = false
-  load_balancer_type = "application"
-  security_groups = [aws_security_group.ecs-rollback-hello-world-alb.id]
-  subnets = aws_subnet.ecs-rollback-hello-world-subnet-public.*.id
- 
-  enable_deletion_protection = false
-}
- 
-resource "aws_alb_target_group" "ecs-rollback-hello-world" {
-  name = "ecs-rollback-hello-world"
-  port = 8080
-  protocol = "HTTP"
-  vpc_id = aws_vpc.ecs-rollback-hello-world.id
-  target_type = "ip"
-  deregistration_delay = 5
- 
-  health_check {
-    healthy_threshold = "3"
-    interval = "10"
-    protocol = "HTTP"
-    matcher = "200"
-    timeout = "3"
-    path = "/"
-    unhealthy_threshold = "2"
-  }
-}
-
-resource "aws_alb_listener" "http" {
-  load_balancer_arn = aws_lb.ecs-rollback-hello-world.id
-  port = 80
-  protocol = "HTTP"
- 
-  default_action {
-    target_group_arn = aws_alb_target_group.ecs-rollback-hello-world.id
-    type = "forward"
-  }
+  alb_name = var.ecs_cluster_name
+  vpc_id = module.vpc.vpc_id
+  subnet_ids = module.vpc.public_subnet_ids
+  application_port = var.application_port
 }

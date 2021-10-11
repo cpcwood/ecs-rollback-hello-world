@@ -1,4 +1,4 @@
-# creates 
+# builds:
 #   - backend s3 bucket to store main application terraform state
 #   - dynamodb table to lock state during changes
 
@@ -10,21 +10,6 @@ terraform {
     }
   }
   required_version = ">= 1.0.8"
-}
-
-variable "tf_state_bucket_region" {
-  description = "AWS region the backend s3 bucket is created in"
-  default = "eu-west-2"
-}
-
-variable "tf_state_s3_bucket" {
-  description = "AWS S3 bucket to store main application terraform state in"
-  default = "ecs-rollback-hello-world"
-}
-
-variable "tf_state_lock_table" {
-  description = "AWS DynamoDB state lock table name"
-  default = "ecs-rollback-hello-world-state-lock-table"
 }
 
 provider "aws" {
@@ -41,10 +26,6 @@ resource "aws_s3_bucket" "terraform_state" {
 
   versioning {
     enabled = true
-  }
-
-  lifecycle {
-    prevent_destroy = true
   }
 }
 
@@ -66,12 +47,4 @@ resource "aws_dynamodb_table" "terraform_state_lock" {
     name = "LockID"
     type = "S"
   }
-}
-
-output "tf_state_s3_bucket" {
-  value = aws_s3_bucket.terraform_state.id
-}
-
-output "tf_state_lock_table" {
-  value = aws_dynamodb_table.terraform_state_lock.id
 }
