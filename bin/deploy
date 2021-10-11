@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Description: Build and deploy updated hello.go app to ECS
+set -e
+source './.env'
+
+cd ./terraform/infrastructure
+ecr_repo=$(terraform output ecr_repository_endpoint | tr -d '"')
+task_definition_family=$(terraform output task_definition_family | tr -d '"')
+ecs_cluster_name=$(terraform output ecs_cluster_name | tr -d '"')
+ecs_service_name=$(terraform output ecs_service_name | tr -d '"')
+cd -
+
+# build image
+# ===========================
+
+unique_image_tag=$(git rev-parse --short HEAD)
+
+docker build \
+  --tag "$ecr_repo:$unique_image_tag" \
+  --tag "$ecr_repo:latest" \
+  .
+
+# push updated image to ECR
+# ==========================
+
+aws ecr get-login-password --profile ecs-rollback-hello-world | \
+  docker login --username AWS --password-stdin "$ecr_repo"
+
+docker push "$ecr_repo:$unique_image_tag"
+docker push "$ecr_repo:latest"
+
+# update service
+# ===========================
+
+echo "Updating: $ecs_service_name"
+echo "  CLUSTER_NAME: [$ecs_cluster_name]"
+echo "  IMAGE FAMILY: [$ecr_repo]"
+echo "  IMAGE TAG: [$unique_image_tag]"
+
+# fetch current task definition
+current_task_definition=$(
+  aws ecs describe-task-definition \
+    --task-definition "$task_definition_family" \
+    --query '{  containerDefinitions: taskDefinition.containerDefinitions,
+                family: taskDefinition.family,
+                executionRoleArn: taskDefinition.executionRoleArn,
+                networkMode: taskDefinition.networkMode,
+                volumes: taskDefinition.volumes,
+                placementConstraints: taskDefinition.placementConstraints,
+                requiresCompatibilities: taskDefinition.requiresCompatibilities,
+                cpu: taskDefinition.cpu,
+                memory: taskDefinition.memory }'
+)
+current_task_definition_revision=$(
+  aws ecs describe-task-definition --task-definition "$task_definition_family" \
+                                   --query 'taskDefinition.revision'
+)
+
+# compare current and updated image tags
+current_container_image="$(echo "$current_task_definition" | jq .containerDefinitions[0].image)"
+updated_container_image="$ecr_repo:$unique_image_tag"
+
+if [[ $current_container_image = "\"$updated_container_image\"" ]]; then
+  echo "Container image '$unique_image_tag' already defined in the latest task definition revision: $task_definition_family:$current_task_definition_revision"
+  read -p "Are you sure you want to deploy?" -n 1 -r
+  if [[ ! $REPLY =~ ^[Yy]$ ]]
+  then
+      exit 1
+  fi
+fi
+
+# inject new image tag into task definition and update
+updated_task_definition=$(echo "$current_task_definition" | jq --arg CONTAINER_IMAGE "$updated_container_image" '.containerDefinitions[0].image = $CONTAINER_IMAGE')
+updated_task_definition_info=$(aws ecs register-task-definition --cli-input-json "$updated_task_definition")
+
+# update service with new task definition revision
+updated_task_definition_revision=$(echo "$updated_task_definition_info" | jq '.taskDefinition.revision')
+silent=$(aws ecs update-service --cluster "$ecs_cluster_name" \
+                                --service "$ecs_service_name" \
+                                --task-definition "$task_definition_family:$updated_task_definition_revision"
+)
+
+echo "Service Updated:"
+echo "  Service: $ecs_cluster_name/$ecs_service_name"
+echo "  Updated Task Definition: $task_definition_family:$updated_task_definition_revision"
+echo "  Previous Task Definition: $task_definition_family:$current_task_definition_revision"

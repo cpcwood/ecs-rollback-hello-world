@@ -11,7 +11,17 @@ terraform {
   }
 }
 
-variable "container_image_name" {
+provider "aws" {
+  region = var.aws_region
+  profile = "ecs-rollback-hello-world"
+}
+
+variable "ecs_cluster_name" {
+  description = "Name of ECS cluster"
+  default = "ecs-rollback-hello-world"
+}
+
+variable "ecr_repo_name" {
   description = "Name of container image to be deployed in ECS"
   default = "hello-world-go"
 }
@@ -30,23 +40,6 @@ variable "public_subnets" {
   description = "list of CIDRs for public subnets in your VPC"
   default = ["10.1.1.0/24", "10.1.2.0/24"]
 }
-
-provider "aws" {
-  region = var.aws_region
-  profile = "ecs-rollback-hello-world"
-}
-
-# data "terraform_remote_state" "state" {
-#   backend = "s3"
-#   config {
-#     region = var.aws_region
-#     bucket = var.tf_state_bucket
-#     lock_table = var.tf_state_table
-#     key = "ecs-rollback-hello-world.tfstate"
-#   }
-# }
-
-
 
 # Networking
 # ==========================
@@ -125,7 +118,7 @@ resource "aws_security_group" "ecs-rollback-hello-world-ecs" {
 
 # ecr repository
 resource "aws_ecr_repository" "ecs-rollback-hello-world" {
-  name = "ecs-rollback-hello-world"
+  name = var.ecr_repo_name
 }
 
 resource "aws_ecr_lifecycle_policy" "ecs-rollback-hello-world" {
@@ -148,7 +141,7 @@ resource "aws_ecr_lifecycle_policy" "ecs-rollback-hello-world" {
 }
 
 # output ecr repo endpoint
-output "ecs-rollback-hello-world-endpoint" {
+output "ecr_repository_endpoint" {
   value = aws_ecr_repository.ecs-rollback-hello-world.repository_url
 }
 
@@ -157,7 +150,7 @@ output "ecs-rollback-hello-world-endpoint" {
 # ==========================
 
 resource "aws_ecs_cluster" "ecs-rollback-hello-world" {
-  name = "ecs-rollback-hello-world"
+  name = var.ecs_cluster_name
 }
 
 resource "aws_iam_role" "ecs_task_execution_role" {
@@ -165,17 +158,16 @@ resource "aws_iam_role" "ecs_task_execution_role" {
  
   assume_role_policy = <<EOF
 {
- "Version": "2012-10-17",
- "Statement": [
-   {
-     "Action": "sts:AssumeRole",
-     "Principal": {
-       "Service": "ecs-tasks.amazonaws.com"
-     },
-     "Effect": "Allow",
-     "Sid": ""
-   }
- ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
 }
 EOF
 }
@@ -193,8 +185,8 @@ resource "aws_ecs_task_definition" "ecs-rollback-hello-world" {
   memory = 512
   execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
   container_definitions = jsonencode([{
-    image = "${var.container_image_name}:latest"
-    name = var.container_image_name
+    image = "${aws_ecr_repository.ecs-rollback-hello-world.repository_url}:latest"
+    name = var.ecr_repo_name
     essential = true
     portMappings = [{
       protocol = "tcp"
@@ -217,18 +209,30 @@ resource "aws_ecs_service" "ecs-rollback-hello-world" {
   network_configuration {
     security_groups = [aws_security_group.ecs-rollback-hello-world-ecs.id]
     subnets = aws_subnet.ecs-rollback-hello-world-subnet-public.*.id
-    assign_public_ip = false
+    assign_public_ip = true
   }
   
   load_balancer {
     target_group_arn = aws_alb_target_group.ecs-rollback-hello-world.arn
-    container_name = var.container_image_name
+    container_name = var.ecr_repo_name
     container_port = 8080
   }
   
   lifecycle {
     ignore_changes = [task_definition, desired_count]
   }
+}
+
+output "ecs_cluster_name" {
+  value = aws_ecs_cluster.ecs-rollback-hello-world.name
+}
+
+output "ecs_service_name" {
+  value = aws_ecs_service.ecs-rollback-hello-world.name
+}
+
+output "task_definition_family" {
+  value = aws_ecs_task_definition.ecs-rollback-hello-world.family
 }
 
 # Load Balancing

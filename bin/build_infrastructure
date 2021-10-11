@@ -21,4 +21,5 @@ terraform init \
   -backend-config "key=ecs-rollback-hello-world.tfstate"
 
 terraform apply \
-  -var "container_image_name=$CONTAINER_IMAGE_NAME"
+  -var "ecr_repo_name=$ECR_REPO_NAME" \
+  -var "ecs_cluster_name=$ECS_CLUSTER_NAME"
