@@ -74,7 +74,9 @@ if [[ $current_container_image = "\"$updated_container_image\"" ]]; then
 fi
 
 # inject new image tag into task definition and update
-updated_task_definition=$(echo "$current_task_definition" | jq --arg CONTAINER_IMAGE "$updated_container_image" '.containerDefinitions[0].image = $CONTAINER_IMAGE')
+updated_task_definition=$(
+  echo "$current_task_definition" | jq --arg CONTAINER_IMAGE "$updated_container_image" '.containerDefinitions[0].image = $CONTAINER_IMAGE'
+)
 updated_task_definition_info=$(aws ecs register-task-definition --cli-input-json "$updated_task_definition")
 
 # update service with new task definition revision
