@@ -5,11 +5,11 @@ Sample AWS Elastic Container Service (ECS) application with deploy and rollback 
 ## Dependencies
 
 Install required dependencies:
-- [bash](https://www.gnu.org/software/bash/) - [command-not-found](https://command-not-found.com/bash)
+- [bash](https://www.gnu.org/software/bash/) ([command-not-found](https://command-not-found.com/bash))
 - [aws-cli v2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 - [terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
 - [jq](https://stedolan.github.io/jq/download/)
-- [dialog](https://linux.die.net/man/1/dialog) - [command-not-found](https://command-not-found.com/dialog)
+- [dialog](https://linux.die.net/man/1/dialog) ([command-not-found](https://command-not-found.com/dialog))
 
 ## Building Infrastructure
 
